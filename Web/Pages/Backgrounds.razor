@@ -1,0 +1,805 @@
+@page "/custom-launcher-backgrounds"
+@rendermode InteractiveServer
+@inject BackgroundSelectionService BackgroundService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Custom Launcher Backgrounds</PageTitle>
+
+<MudText Typo="Typo.h3" Class="mb-2">Custom Launcher Backgrounds</MudText>
+<MudText Typo="Typo.body1" Class="mb-6">
+    A background from the playlist is written into the launcher itself on every server start (so the launcher
+    shows it), served at <code>/files/launcher/bg</code>, and - while the launcher is open - rotated in order
+    through <code>res/Images</code> and <code>res/Videos</code> with a crossfade. Everything below applies
+    immediately on save.
+</MudText>
+
+@if (BackgroundService.Active)
+{
+    <MudPaper Elevation="2" Class="pa-4 mb-6">
+        <MudText Typo="Typo.h6" Class="mb-1">Current background</MudText>
+        <MudText Typo="Typo.body2" Class="mb-4">
+            <b>@BackgroundService.SelectedFileName</b> - @BackgroundService.ImageCount item(s) available in "@BackgroundService.ActiveFolder"
+        </MudText>
+        <img src="@ImageUrl" alt="Current launcher background" style="width: 100%; border-radius: 8px; display: block;" />
+    </MudPaper>
+}
+else if (!BackgroundService.Enabled)
+{
+    <MudAlert Severity="Severity.Info" Class="mb-6">
+        The mod is disabled (<code>modEnabled: false</code>) - enable it in the settings below.
+    </MudAlert>
+}
+else
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-6">
+        @(BackgroundService.LastError ?? "No background is currently being served.")
+    </MudAlert>
+}
+
+<MudPaper Elevation="2" Class="pa-4 mb-6">
+    <MudText Typo="Typo.h6" Class="mb-3">Settings</MudText>
+
+    <div style="display:flex; flex-wrap:wrap; gap:24px;">
+        <div style="min-width:260px;">
+            <MudSwitch T="bool" @bind-Value="_settings.ModEnabled" Label="Mod enabled" Color="Color.Primary" />
+            <MudSwitch T="bool" @bind-Value="_settings.PatchLauncher" Label="Write the background into the local launcher" Color="Color.Primary" />
+            <MudSwitch T="bool" @bind-Value="_settings.ConsoleLogs" Label="Extra console logs" Color="Color.Primary" />
+        </div>
+        <div style="min-width:260px;">
+            <MudNumericField T="int?" @bind-Value="_settings.ImageRotationSeconds" Label="Image rotation seconds" Min="1" Max="86400" Class="mb-4" HelperText="How long each image stays before the playlist advances." />
+            <MudNumericField T="int?" @bind-Value="_settings.VideoRotationSeconds" Label="Video rotation seconds" Min="1" Max="86400" Class="mb-4" HelperText="How long each video stays - its own interval." />
+            <MudNumericField T="int" @bind-Value="_settings.RotationHttpPort" Label="Rotation HTTP port" Min="1" Max="65535" Class="mb-4" />
+            <MudTextField T="string" @bind-Value="_settings.RotationHttpIP"
+                          Label="Rotation IP (blank = automatic)"
+                          HelperText="Your LAN/public IP (or 0.0.0.0 for all interfaces) so launchers on other computers can rotate. Loopback stays bound for this machine."
+                          Class="mb-4" />
+            <MudSwitch T="bool" @bind-Value="_settings.RandomRotationStart" Label="Random start point (off = always start at 1-bg / lowest number)" Color="Color.Primary" />
+            <MudSwitch T="bool" @bind-Value="_settings.RotationBindAll" Label="Also serve rotation to other computers (binds all interfaces)" Color="Color.Primary" />
+            <MudSwitch T="bool" @bind-Value="_settings.LauncherWindowBorderless" Label="Borderless launcher window (no title bar/border)" Color="Color.Primary" />
+            <MudTextField T="string" @bind-Value="_settings.LauncherOutputFolder"
+                          Label="Output folder (outside SPT_Runtime)"
+                          HelperText="Folder name where the patched SPT.Launcher.exe is copied after patching. Set to blank to disable. Friends download from here."
+                          Class="mb-4" />
+            <MudTextField T="string" @bind-Value="_settings.RotationRemoteIp"
+                          Label="Rotation remote IP (for Tailscale/VPN)"
+                          HelperText="Explicit IP remote launchers connect to (e.g., your Tailscale IP). Leave blank to auto-detect. Does not affect what the server binds to."
+                          Class="mb-4" />
+            <MudNumericField T="int" @bind-Value="_settings.LauncherPanelOpacityPercent" Label="Panel opacity % (cards/dialogs)" Min="0" Max="100"
+                             HelperText="0 = completely clear cards (no tint, no frosting), 70+ = the launcher's stock frosted look. Below 70 the window border is also tinted in the launcher's light shade so it blends. Baked in when the launcher is patched - close it and save to apply." />
+            <MudNumericField T="int" @bind-Value="_settings.LauncherBackgroundVeilPercent" Label="Blur/veil over the background image &amp; video %" Min="0" Max="100"
+                             HelperText="Strength of the launcher's dark veil over the artwork: 100 = the launcher's stock veil, 0 = the image/video shows fully clear, in between scales it. The side bars and cards keep their own look. Baked in when the launcher is patched - close it and save." />
+            <MudSwitch T="bool" @bind-Value="_settings.ReplaceInfoPanel" Label="Replace the launcher's Info page with my own text" Color="Color.Primary"
+               Class="mt-3" />
+    @for (var i = 0; i < _settings.InfoPanelBoxes.Count; i++)
+    {
+        var index = i;
+        <div style="display:flex; gap:8px; align-items:flex-start;">
+            <MudTextField T="string" @bind-Value="_settings.InfoPanelBoxes[index]" Label="@($"Info box {index + 1}")" Lines="4" Variant="Variant.Outlined"
+                          Disabled="@(!_settings.ReplaceInfoPanel)"
+                          Class="mt-2" HelperText="@(index == 0 ? "One box per card on the launcher's Info page, in order (the built-in link cards are removed). Line breaks are kept; edits apply without re-patching the launcher." : "")" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Class="mt-4" Disabled="@(!_settings.ReplaceInfoPanel)" OnClick="@(() => RemoveInfoBox(index))" />
+        </div>
+    }
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Add" OnClick="AddInfoBox" Disabled="@(!_settings.ReplaceInfoPanel)" Class="mt-1">Add box</MudButton>
+    <MudTextField T="string" @bind-Value="_settings.InfoPanelLink" Label="Info panel link (opened when a box is clicked)" Variant="Variant.Outlined"
+                  Disabled="@(!_settings.ReplaceInfoPanel)"
+                  Class="mt-2" Placeholder="https://example.com"
+                  HelperText="Every box opens this link when clicked. Replaces the launcher's stock sp-mod.com link; leave empty to make the boxes inert." />
+
+    <MudSwitch T="bool" @bind-Value="_settings.HideLocalServerCard" Label="Hide the local launcher server card (127.0.0.1)" Color="Color.Primary"
+                       HelperText="On = the launcher's Local Server entry is hidden from the server list. Baked in when the launcher is patched - close the launcher and save. If 127.0.0.1 is your only entry the list will be empty; switch it off to bring the card back." />
+        </div>
+        <div style="min-width:320px; flex:1;">
+            <MudTextField T="string" @bind-Value="_settings.LauncherFolderToUse"
+                          Label="Folder to use (empty = res/Images + res/Videos)"
+                          HelperText="A name uses res/<name>; older res/launchers/<name> folders also work."
+                          Class="mb-2" />
+            <div style="display:flex; gap:12px;">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveSettingsAsync" Disabled="_busy">Save & apply</MudButton>
+                <MudButton Variant="Variant.Outlined" OnClick="Reapply" Disabled="_busy">Re-apply now</MudButton>
+            </div>
+        </div>
+    </div>
+
+    @if (_settingsMessage is not null)
+    {
+        <MudAlert Severity="@(_settingsError ? Severity.Error : Severity.Success)" Class="mt-4" Dense="true">@_settingsMessage</MudAlert>
+    }
+</MudPaper>
+
+<MudPaper Elevation="2" Class="pa-4 mb-6">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;" class="mb-1">
+        <MudText Typo="Typo.h6">Images</MudText>
+        <MudSwitch T="bool" @bind-Value="_settings.UseImages" Label="Use images in rotation" Color="Color.Primary" />
+    </div>
+    <MudText Typo="Typo.body2" Class="mb-3">
+        Files in <code>res/Images</code>. Uploads are named automatically per kind (first image
+        <code>1-bg.png</code>, next <code>2-bg.png</code>...) and rotation plays them in number order
+        (use the Random start point switch to always begin at 1-bg). With both toggles on the launcher
+        alternates image - video - image...
+    </MudText>
+
+    @if (Images.Count == 0)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">No images found.</MudAlert>
+    }
+    else
+    {
+        <MudTable Items="@Images" Dense="true" Hover="true" Class="mb-3">
+            <HeaderContent>
+                <MudTh><MudCheckBox T="bool" Value="@AllSelected(MediaKind.Image)" ValueChanged="@(v => ToggleAll(MediaKind.Image, v))" Dense="true" Color="Color.Primary" /></MudTh>
+                <MudTh>File</MudTh>
+                <MudTh>Size</MudTh>
+                <MudTh>Pixels</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel=""><MudCheckBox T="bool" Value="@IsSelected(context.FileName, MediaKind.Image)" ValueChanged="@(v => ToggleSelected(context.FileName, MediaKind.Image, v))" Dense="true" Color="Color.Primary" /></MudTd>
+                <MudTd DataLabel="File">@context.FileName</MudTd>
+                <MudTd DataLabel="Size">@FormatSize(context.SizeBytes)</MudTd>
+                <MudTd DataLabel="Pixels">@(context.Width is null ? "-" : $"{context.Width} x {context.Height}")</MudTd>
+                <MudTd DataLabel="">@DeleteButton(context)</MudTd>
+            </RowTemplate>
+        </MudTable>
+
+        @if (SelectedCount(MediaKind.Image) > 0)
+        {
+            <div class="d-flex align-center gap-3 mb-3">
+                @if (_confirmBulkImages)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedImages" Disabled="_busy">Confirm delete @SelectedCount(MediaKind.Image)</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => _confirmBulkImages = false">Cancel</MudButton>
+                }
+                else
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="() => _confirmBulkImages = true" Disabled="_busy">Delete selected (@SelectedCount(MediaKind.Image))</MudButton>
+                }
+            </div>
+        }
+    }
+
+    @if (_mediaMessage is not null)
+    {
+        <MudAlert Severity="Severity.Normal" Dense="true" Class="mb-3">@_mediaMessage</MudAlert>
+    }
+
+    <MudDivider Class="my-4" />
+
+    <MudText Typo="Typo.subtitle1" Class="mb-2">Add images (with formatting)</MudText>
+    <MudText Typo="Typo.body2" Class="mb-3">
+        Pick <code>.jpg .jpeg .png .webp .bmp .gif</code>. Images are converted and resized/cropped to the
+        chosen size below. Identical files are skipped, and re-uploading the <b>same file name</b> replaces
+        its stored copy in place (new versions keep their number).
+    </MudText>
+
+    <InputFile multiple OnChange="OnImagesSelected"
+               accept=".jpg,.jpeg,.png,.webp,.bmp,.gif"
+               style="display:block; margin-bottom:16px;" />
+
+    @if (_uploadFilesImages.Count > 0)
+    {
+        <MudText Typo="Typo.body2" Class="mb-2">Selected: @string.Join(", ", _uploadFilesImages.Select(file => $"{file.Name} ({FormatSize(file.Size)})"))</MudText>
+    }
+
+    <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:end;">
+        <MudSelect T="string" @bind-Value="_targetSize" Label="Image size" Style="min-width:260px;">
+            <MudSelectItem T="string" Value="@("1920x1080")">1920 x 1080 (16:9 - matches the launcher window)</MudSelectItem>
+            <MudSelectItem T="string" Value="@("900x450")">900 x 450 (2:1 - the launcher's native art)</MudSelectItem>
+            <MudSelectItem T="string" Value="@("source")">Keep original size (no resize, no crop)</MudSelectItem>
+        </MudSelect>
+        <MudSelect T="string" @bind-Value="_fitMode" Label="Image fit" Style="min-width:280px;">
+            <MudSelectItem T="string" Value="@("crop")">Crop to fill (full-bleed - cuts the overflow)</MudSelectItem>
+            <MudSelectItem T="string" Value="@("fitblur")">Fit - blurred background (nothing is cut)</MudSelectItem>
+            <MudSelectItem T="string" Value="@("stretch")">Stretch to size</MudSelectItem>
+        </MudSelect>
+        <MudSelect T="string" @bind-Value="_outputFormat" Label="Image format" Style="min-width:250px;">
+            <MudSelectItem T="string" Value="@("source")">Auto - detect from the file (JPEG stays JPEG, others PNG)</MudSelectItem>
+            <MudSelectItem T="string" Value="@("png")">PNG (lossless, larger files)</MudSelectItem>
+            <MudSelectItem T="string" Value="@("jpeg")">JPEG (smaller, lossy)</MudSelectItem>
+        </MudSelect>
+        <MudSelect T="string" @bind-Value="_deblockMode" Label="JPEG cleanup" Style="min-width:250px;">
+            <MudSelectItem T="string" Value="@("off")">Off</MudSelectItem>
+            <MudSelectItem T="string" Value="@("light")">Light - smooth JPEG blocks &amp; grain</MudSelectItem>
+            <MudSelectItem T="string" Value="@("strong")">Strong</MudSelectItem>
+            <MudSelectItem T="string" Value="@("maximum")">Maximum - deblock + smooth grain</MudSelectItem>
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="UploadImagesAsync"
+                   Disabled="@(_busy || _uploadFilesImages.Count == 0)">
+            @(_busy ? "Uploading..." : "Upload & format")
+        </MudButton>
+    </div>
+
+    @if (_uploadImagesResults.Count > 0)
+    {
+        <div class="mt-3">
+            @foreach (var result in _uploadImagesResults)
+            {
+                <MudAlert Severity="@ResultSeverity(result)" Dense="true" Class="mb-1">@result</MudAlert>
+            }
+        </div>
+    }
+</MudPaper>
+
+<MudPaper Elevation="2" Class="pa-4 mb-6">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;" class="mb-1">
+        <MudText Typo="Typo.h6">Videos</MudText>
+        <MudSwitch T="bool" @bind-Value="_settings.UseVideos" Label="Use videos in rotation" Color="Color.Primary" />
+    </div>
+    <MudText Typo="Typo.body2" Class="mb-3">
+        Files in <code>res/Videos</code>. Uploads are named automatically per kind (first video
+        <code>1-bg.mp4</code>, next <code>2-bg.mp4</code>...). H.264 mp4 plays in the launcher.
+    </MudText>
+
+    @if (Videos.Count == 0)
+    {
+        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">No videos found.</MudAlert>
+    }
+    else
+    {
+        <MudTable Items="@Videos" Dense="true" Hover="true" Class="mb-3">
+            <HeaderContent>
+                <MudTh><MudCheckBox T="bool" Value="@AllSelected(MediaKind.Video)" ValueChanged="@(v => ToggleAll(MediaKind.Video, v))" Dense="true" Color="Color.Primary" /></MudTh>
+                <MudTh>File</MudTh>
+                <MudTh>Size</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel=""><MudCheckBox T="bool" Value="@IsSelected(context.FileName, MediaKind.Video)" ValueChanged="@(v => ToggleSelected(context.FileName, MediaKind.Video, v))" Dense="true" Color="Color.Primary" /></MudTd>
+                <MudTd DataLabel="File">@context.FileName</MudTd>
+                <MudTd DataLabel="Size">@FormatSize(context.SizeBytes)</MudTd>
+                <MudTd DataLabel="">@DeleteButton(context)</MudTd>
+            </RowTemplate>
+        </MudTable>
+
+        @if (SelectedCount(MediaKind.Video) > 0)
+        {
+            <div class="d-flex align-center gap-3 mb-3">
+                @if (_confirmBulkVideos)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error" OnClick="DeleteSelectedVideos" Disabled="_busy">Confirm delete @SelectedCount(MediaKind.Video)</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => _confirmBulkVideos = false">Cancel</MudButton>
+                }
+                else
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="() => _confirmBulkVideos = true" Disabled="_busy">Delete selected (@SelectedCount(MediaKind.Video))</MudButton>
+                }
+            </div>
+        }
+    }
+
+    @if (_mediaMessage is not null)
+    {
+        <MudAlert Severity="Severity.Normal" Dense="true" Class="mb-3">@_mediaMessage</MudAlert>
+    }
+
+    <MudDivider Class="my-4" />
+
+    <MudText Typo="Typo.subtitle1" Class="mb-2">Add videos</MudText>
+    <MudText Typo="Typo.body2" Class="mb-3">
+        Pick <code>.mp4</code> (up to 2 GB). Files are validated and stored; large clips are re-fetched each
+        rotation. Identical files are skipped, and re-uploading the <b>same file name</b> replaces its stored
+        copy in place.
+    </MudText>
+
+    <InputFile multiple OnChange="OnVideosSelected" accept=".mp4" style="display:block; margin-bottom:16px;" />
+
+    @if (_uploadFilesVideos.Count > 0)
+    {
+        <MudText Typo="Typo.body2" Class="mb-2">Selected: @string.Join(", ", _uploadFilesVideos.Select(file => $"{file.Name} ({FormatSize(file.Size)})"))</MudText>
+    }
+
+    <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:end;">
+        <MudSelect T="string" @bind-Value="_videoTargetSize" Label="Video size" Style="min-width:220px;">
+            <MudSelectItem T="string" Value="@("900x450")">900 x 450 (mod default)</MudSelectItem>
+            <MudSelectItem T="string" Value="@("1920x1080")">1920 x 1080 (high quality)</MudSelectItem>
+            <MudSelectItem T="string" Value="@("source")">Keep original size</MudSelectItem>
+        </MudSelect>
+        <MudSelect T="string" @bind-Value="_videoFitMode" Label="Video fit" Style="min-width:200px;">
+            <MudSelectItem T="string" Value="@("crop")">Crop to fill (recommended)</MudSelectItem>
+            <MudSelectItem T="string" Value="@("stretch")">Stretch to size</MudSelectItem>
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="UploadVideosAsync"
+                   Disabled="@(_busy || _uploadFilesVideos.Count == 0)">
+            @(_busy ? "Uploading..." : "Upload & format")
+        </MudButton>
+    </div>
+    <MudTextField T="string" @bind-Value="_settings.VideoFfmpegPath" Label="ffmpeg path (blank = auto-detect)"
+                  HelperText="Used to re-encode/scale videos to the size above. Blank auto-detects in the mod folder (ffmpeg.exe, ffmpeg\ffmpeg.exe, ffmpeg\bin\ffmpeg.exe, tools\ffmpeg\...), then the PATH, then C:\ffmpeg. A relative path here is resolved from the mod folder."
+                  Class="mt-3" />
+
+    @if (_uploadVideosResults.Count > 0)
+    {
+        <div class="mt-3">
+            @foreach (var result in _uploadVideosResults)
+            {
+                <MudAlert Severity="@ResultSeverity(result)" Dense="true" Class="mb-1">@result</MudAlert>
+            }
+        </div>
+    }
+</MudPaper>
+
+<MudPaper Elevation="2" Class="pa-4 mb-6">
+    <MudText Typo="Typo.h6" Class="mb-2">Launcher integration</MudText>
+    @if (!string.IsNullOrEmpty(BackgroundService.LauncherPatchInfo))
+    {
+        <MudAlert Severity="Severity.Normal" Variant="Variant.Outlined" Class="mb-3" Dense="true">
+            @BackgroundService.LauncherPatchInfo
+        </MudAlert>
+    }
+    @if (!string.IsNullOrEmpty(BackgroundService.ModSyncInfo))
+    {
+        <MudText Typo="Typo.body2" Class="mb-2">Corter-ModSync: @BackgroundService.ModSyncInfo</MudText>
+    }
+    @if (!string.IsNullOrEmpty(BackgroundService.RotationInfo))
+    {
+        <MudText Typo="Typo.body2" Class="mb-2">Background rotation: @BackgroundService.RotationInfo</MudText>
+    }
+    @if (!string.IsNullOrEmpty(BackgroundService.LauncherWindowInfo))
+    {
+        <MudText Typo="Typo.body2" Class="mb-2">Launcher window: @BackgroundService.LauncherWindowInfo</MudText>
+    }
+    <MudText Typo="Typo.body2">
+        The 5.0 launcher has its background baked in and no longer downloads it from the server, so this mod
+        writes the chosen image directly into the launcher files (<code>SPT.Launcher.exe</code> and
+        <code>SPT.Launcher.Linux</code>) on every apply. The first time this happens a backup
+        (<code>SPT.Launcher.exe.original</code>) is created next to the launcher.
+    </MudText>
+    <MudList T="string" Dense="true" Class="mt-2">
+        <MudListItem T="string" Icon="@Icons.Material.Filled.Info">
+            If the launcher is already running when the server starts, the image cannot be written -
+            close the launcher and use "Re-apply now".
+        </MudListItem>
+        <MudListItem T="string" Icon="@Icons.Material.Filled.Info">
+            SPT updates replace the launcher; just re-apply afterwards to give it the background again.
+        </MudListItem>
+    </MudList>
+</MudPaper>
+
+<MudPaper Elevation="2" Class="pa-4 mb-6">
+    <MudText Typo="Typo.h6" Class="mb-2">Players on other computers (remote servers)</MudText>
+    <MudText Typo="Typo.body2">
+        Each player's launcher is a local file, so this server cannot change it from here. Players can run the
+        small patcher tool on their own computer - it downloads the current background from this server and
+        applies it to their launcher (with the launcher closed).
+    </MudText>
+    <MudList T="string" Dense="true" Class="mt-2">
+        <MudListItem T="string" Icon="@Icons.Material.Filled.LooksOne">
+            Download the patcher:
+            <a href="/PreyToLive-CustomLauncherBackgrounds/LauncherPatcher/win/CustomLauncherBackgrounds.Patcher.exe">Windows (.exe)</a> |
+            <a href="/files/launcher/clb-patcher-linux">Linux</a> |
+            <a href="/files/launcher/clb-patcher-cmd">patch-and-launch.cmd</a> |
+            <a href="/PreyToLive-CustomLauncherBackgrounds/LauncherPatcher/README.txt">README</a>
+        </MudListItem>
+        <MudListItem T="string" Icon="@Icons.Material.Filled.LooksTwo">
+            Extract the downloaded <code>LauncherPatcher</code> folder into <code>SPT_Runtime</code> (next to
+            <code>SPT.Launcher.exe</code>) and run <code>patch-and-launch.cmd</code> - or run the patcher directly:
+            <br/><code>CustomLauncherBackgrounds.Patcher.exe --server @ServerOrigin</code>
+        </MudListItem>
+        <MudListItem T="string" Icon="@Icons.Material.Filled.Looks3">
+            Repeat whenever they want the current background; a one-time <code>.original</code> backup of their
+            launcher is created, and SPT updates are handled by simply running the patcher again.
+        </MudListItem>
+    </MudList>
+</MudPaper>
+
+<MudPaper Elevation="2" Class="pa-4 mb-6">
+    <MudText Typo="Typo.h6" Class="mb-2">In-game launcher update (optional client plugin)</MudText>
+    <MudText Typo="Typo.body2">
+        Players who install the small client plugin get a window in-game that asks whether they want to update
+        their launcher to this server's background. If they accept, the server sends a ready-patched
+        SPT.Launcher.exe and the plugin installs it over their local launcher (their original file is kept as
+        <code>SPT.Launcher.exe.original</code>).
+    </MudText>
+    <MudList T="string" Dense="true" Class="mt-2">
+        <MudListItem T="string" Icon="@Icons.Material.Filled.LooksOne">
+            Download:
+            <a href="/files/launcher/clb-plugin">CustomLauncherBackgrounds.Gui.dll</a> (rename the downloaded file to
+            <code>CustomLauncherBackgrounds.Gui.dll</code>) |
+            <a href="/PreyToLive-CustomLauncherBackgrounds/InGamePrompt/README.txt">README</a>
+        </MudListItem>
+        <MudListItem T="string" Icon="@Icons.Material.Filled.LooksTwo">
+            Install: drop the .dll into <code>BepInEx\plugins\</code>. The window appears in the main menu
+            when the server has a new background for you.
+        </MudListItem>
+        <MudListItem T="string" Icon="@Icons.Material.Filled.Looks3">
+            Hosts: the mod package already contains the plugin under <code>BepInEx\plugins\</code> - include it
+            in the client pack you hand to your players.
+        </MudListItem>
+    </MudList>
+</MudPaper>
+
+@* MudBlazor providers for THIS page's interactive render scope. The SIC layout carries its own set,
+   but it renders in a different scope, so components that use popovers (the upload formatter's selects)
+   would otherwise fail with "Missing <MudPopoverProvider /> in the active render scope". *@
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@code {
+    private const long MaxUploadBytes = 512L * 1024 * 1024;
+
+    /// <summary>Video uploads may be large - 2 GB.</summary>
+    private const long MaxVideoUploadBytes = 2L * 1024 * 1024 * 1024;
+
+    private string ImageUrl => $"/files/launcher/bg?v={BackgroundService.CacheToken}";
+
+    /// <summary>This server's origin, used in the remote patcher command example.</summary>
+    private string ServerOrigin => NavigationManager.BaseUri.TrimEnd('/');
+
+    private ModConfig _settings = new();
+    private string? _settingsMessage;
+    private bool _settingsError;
+
+    private IReadOnlyList<MediaFileInfo> _media = [];
+    private string? _mediaMessage;
+    private readonly HashSet<string> _selectedImageNames = [];
+    private readonly HashSet<string> _selectedVideoNames = [];
+    private bool _confirmBulkImages;
+    private bool _confirmBulkVideos;
+    private string? _pendingDelete;
+
+    private IReadOnlyList<MediaFileInfo> Images => _media.Where(m => m.Kind == MediaKind.Image).ToList();
+    private IReadOnlyList<MediaFileInfo> Videos => _media.Where(m => m.Kind == MediaKind.Video).ToList();
+    private IReadOnlyList<IBrowserFile> _uploadFilesImages = [];
+    private IReadOnlyList<IBrowserFile> _uploadFilesVideos = [];
+    private string _targetSize = "1920x1080";
+    private string _fitMode = "stretch";
+    private string _outputFormat = "source";
+    private string _deblockMode = "off";
+    private bool _busy;
+    private IReadOnlyList<string> _uploadImagesResults = [];
+    private IReadOnlyList<string> _uploadVideosResults = [];
+
+    private static readonly string[] ImageExtensions = [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif"];
+    private static readonly string[] VideoExtensions = [".mp4"];
+    private string _videoTargetSize = "source";
+    private string _videoFitMode = "crop";
+
+    protected override void OnInitialized()
+    {
+        RefreshFromService();
+    }
+
+    private void RefreshFromService()
+    {
+        var config = BackgroundService.Config;
+        _settings = new ModConfig
+        {
+            ModEnabled = config.ModEnabled,
+            ConsoleLogs = config.ConsoleLogs,
+            LauncherFolderToUse = config.LauncherFolderToUse,
+            PatchLauncher = config.PatchLauncher,
+            RotationSeconds = config.RotationSeconds,
+            ImageRotationSeconds = config.ImageRotationSeconds ?? config.RotationSeconds,
+            VideoRotationSeconds = config.VideoRotationSeconds ?? config.RotationSeconds,
+            RotationHttpPort = config.RotationHttpPort,
+            RotationHttpIP = config.RotationHttpIP,
+            RotationBindAll = config.RotationBindAll,
+            UseImages = config.UseImages,
+            UseVideos = config.UseVideos,
+            VideoFfmpegPath = config.VideoFfmpegPath,
+            RandomRotationStart = config.RandomRotationStart,
+            HideLocalServerCard = config.HideLocalServerCard,
+            LauncherBackgroundVeilPercent = config.LauncherBackgroundVeilPercent,
+            LauncherWindowBorderless = config.LauncherWindowBorderless,
+            LauncherOutputFolder = config.LauncherOutputFolder,
+            RotationRemoteIp = config.RotationRemoteIp,
+            LauncherPanelOpacityPercent = config.LauncherPanelOpacityPercent,
+            ReplaceInfoPanel = config.ReplaceInfoPanel,
+            InfoPanelText = config.InfoPanelText,
+            InfoPanelBoxes = config.InfoPanelBoxes is { Count: > 0 }
+                ? new List<string>(config.InfoPanelBoxes)
+                : new List<string> { config.InfoPanelText ?? string.Empty },
+            InfoPanelLink = config.InfoPanelLink,
+        };
+
+        _media = BackgroundService.ListMedia();
+
+        // Drop selections that no longer exist (a delete/renumber changed the names).
+        _selectedImageNames.RemoveWhere(name => !Images.Any(file => file.FileName == name));
+        _selectedVideoNames.RemoveWhere(name => !Videos.Any(file => file.FileName == name));
+    }
+
+    private void AddInfoBox() => _settings.InfoPanelBoxes.Add(string.Empty);
+
+    private void RemoveInfoBox(int index)
+    {
+        if (index >= 0 && index < _settings.InfoPanelBoxes.Count)
+        {
+            _settings.InfoPanelBoxes.RemoveAt(index);
+        }
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        try
+        {
+            await BackgroundService.SaveSettingsAsync(_settings);
+            _settingsMessage = "Settings saved to config.json and applied.";
+            _settingsError = false;
+        }
+        catch (Exception exception)
+        {
+            _settingsMessage = "Could not save settings: " + exception.Message;
+            _settingsError = true;
+        }
+
+        RefreshFromService();
+    }
+
+    private void Reapply()
+    {
+        BackgroundService.Reapply();
+        _settingsMessage = "Re-applied.";
+        _settingsError = false;
+        RefreshFromService();
+    }
+
+    private void RequestDelete(MediaFileInfo file) => _pendingDelete = file.FileName;
+
+    private void CancelDelete() => _pendingDelete = null;
+
+    private void ConfirmDelete(MediaFileInfo file)
+    {
+        var deleted = BackgroundService.DeleteMedia(file.FileName, file.Kind);
+        _mediaMessage = deleted is null ? $"Could not delete {file.FileName}." : $"Deleted {deleted}.";
+        _pendingDelete = null;
+        RefreshFromService();
+    }
+
+    private void OnImagesSelected(InputFileChangeEventArgs args)
+    {
+        _uploadFilesImages = args.GetMultipleFiles(50);
+        _uploadImagesResults = [];
+    }
+
+    private void OnVideosSelected(InputFileChangeEventArgs args)
+    {
+        _uploadFilesVideos = args.GetMultipleFiles(50);
+        _uploadVideosResults = [];
+    }
+
+    private MediaFormatOptions BuildFormatOptions()
+    {
+        var (width, height) = _targetSize switch
+        {
+            "1920x1080" => (1920, 1080),
+            "source" => (0, 0),
+            _ => (900, 450),
+        };
+
+        return new MediaFormatOptions(width, height, _fitMode == "crop", _outputFormat, string.Empty, _fitMode == "fitblur", DeblockPercent(), DenoisePercent());
+    }
+
+    /// <summary>Maps the JPEG cleanup choice to a deblock strength percent (0 = off).</summary>
+    private int DeblockPercent() => _deblockMode switch
+    {
+        "light" => 55,
+        "strong" => 100,
+        "maximum" => 100,
+        _ => 0,
+    };
+
+    /// <summary>Grain smoothing strength for the "maximum" cleanup (0 = off).</summary>
+    private int DenoisePercent() => _deblockMode == "maximum" ? 45 : 0;
+
+    private static async Task<IReadOnlyList<(string FileName, byte[] Content)>> ReadUploadsAsync(IReadOnlyList<IBrowserFile> files)
+    {
+        var uploads = new List<(string FileName, byte[] Content)>();
+
+        foreach (var file in files)
+        {
+            await using var stream = file.OpenReadStream(MaxUploadBytes);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            uploads.Add((file.Name, memory.ToArray()));
+        }
+
+        return uploads;
+    }
+
+    private static bool HasAnyExtension(string fileName, string[] extensions)
+        => extensions.Contains(Path.GetExtension(fileName), StringComparer.OrdinalIgnoreCase);
+
+    private async Task UploadImagesAsync()
+    {
+        if (_uploadFilesImages.Count == 0)
+        {
+            return;
+        }
+
+        _busy = true;
+        _uploadImagesResults = [];
+
+        try
+        {
+            var uploads = await ReadUploadsAsync(_uploadFilesImages);
+            var accepted = uploads.Where(u => HasAnyExtension(u.FileName, ImageExtensions)).ToArray();
+            var rejected = uploads.Where(u => !HasAnyExtension(u.FileName, ImageExtensions)).Select(u => u.FileName).ToArray();
+
+            var results = BackgroundService.ImportMedia(accepted, BuildFormatOptions()).ToList();
+            if (rejected.Length > 0)
+            {
+                results.Insert(0, "Skipped non-image files: " + string.Join(", ", rejected));
+            }
+
+            _uploadImagesResults = results;
+            _mediaMessage = null;
+        }
+        catch (Exception exception)
+        {
+            _uploadImagesResults = ["Upload failed: " + exception.Message];
+        }
+        finally
+        {
+            _busy = false;
+            _uploadFilesImages = [];
+            RefreshFromService();
+        }
+    }
+
+    private async Task UploadVideosAsync()
+    {
+        if (_uploadFilesVideos.Count == 0)
+        {
+            return;
+        }
+
+        _busy = true;
+        _uploadVideosResults = [];
+        var tempDirectory = Path.Combine(Path.GetTempPath(), "clb-upload-" + Guid.NewGuid().ToString("N")[..8]);
+
+        try
+        {
+            Directory.CreateDirectory(tempDirectory);
+            var uploads = new List<(string FileName, string TempPath)>();
+            var rejected = new List<string>();
+
+            foreach (var file in _uploadFilesVideos)
+            {
+                if (!HasAnyExtension(file.Name, VideoExtensions))
+                {
+                    rejected.Add(file.Name);
+                    continue;
+                }
+
+                // Stream straight to disk - a 2 GB clip must never be held in memory.
+                var tempPath = Path.Combine(tempDirectory, Guid.NewGuid().ToString("N") + ".mp4");
+                await using (var source = file.OpenReadStream(MaxVideoUploadBytes))
+                await using (var target = File.Create(tempPath))
+                {
+                    await source.CopyToAsync(target);
+                }
+
+                uploads.Add((file.Name, tempPath));
+            }
+
+            var (videoWidth, videoHeight) = _videoTargetSize switch
+            {
+                "1920x1080" => (1920, 1080),
+                "source" => (0, 0),
+                _ => (900, 450),
+            };
+
+            var results = BackgroundService.ImportMediaFiles(
+                uploads,
+                new MediaFormatOptions(videoWidth, videoHeight, _videoFitMode == "crop", "mp4", ".mp4")).ToList();
+
+            if (rejected.Count > 0)
+            {
+                results.Insert(0, "Skipped non-video files: " + string.Join(", ", rejected));
+            }
+
+            _uploadVideosResults = results;
+            _mediaMessage = null;
+        }
+        catch (Exception exception)
+        {
+            _uploadVideosResults = ["Upload failed: " + exception.Message];
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(tempDirectory))
+                {
+                    Directory.Delete(tempDirectory, recursive: true);
+                }
+            }
+            catch
+            {
+                // best effort - a leftover file would live in the system temp folder
+            }
+
+            _busy = false;
+            _uploadFilesVideos = [];
+            RefreshFromService();
+        }
+    }
+
+    private RenderFragment DeleteButton(MediaFileInfo context) => __builder =>
+    {
+        if (_pendingDelete == context.FileName)
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Error" OnClick="() => ConfirmDelete(context)" Disabled="_busy">Confirm delete</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="CancelDelete">Cancel</MudButton>
+        }
+        else
+        {
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="() => RequestDelete(context)" Disabled="_busy">Delete</MudButton>
+        }
+    };
+
+    private bool IsSelected(string fileName, MediaKind kind) =>
+        (kind == MediaKind.Image ? _selectedImageNames : _selectedVideoNames).Contains(fileName);
+
+    private void ToggleSelected(string fileName, MediaKind kind, bool value)
+    {
+        var set = kind == MediaKind.Image ? _selectedImageNames : _selectedVideoNames;
+        if (value) set.Add(fileName); else set.Remove(fileName);
+    }
+
+    private bool AllSelected(MediaKind kind)
+    {
+        var items = kind == MediaKind.Image ? Images : Videos;
+        var set = kind == MediaKind.Image ? _selectedImageNames : _selectedVideoNames;
+        return items.Count > 0 && items.All(file => set.Contains(file.FileName));
+    }
+
+    private void ToggleAll(MediaKind kind, bool value)
+    {
+        var items = kind == MediaKind.Image ? Images : Videos;
+        var set = kind == MediaKind.Image ? _selectedImageNames : _selectedVideoNames;
+        foreach (var file in items)
+        {
+            if (value) set.Add(file.FileName); else set.Remove(file.FileName);
+        }
+    }
+
+    private int SelectedCount(MediaKind kind) => (kind == MediaKind.Image ? _selectedImageNames : _selectedVideoNames).Count;
+
+    private void DeleteSelectedImages() => ConfirmDeleteSelected(MediaKind.Image);
+    private void DeleteSelectedVideos() => ConfirmDeleteSelected(MediaKind.Video);
+
+    private void ConfirmDeleteSelected(MediaKind kind)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        var set = kind == MediaKind.Image ? _selectedImageNames : _selectedVideoNames;
+        if (set.Count == 0)
+        {
+            return;
+        }
+
+        var deleted = BackgroundService.DeleteMedia(set.Select(name => (name, kind)).ToList());
+        _mediaMessage = deleted.Count == 0
+            ? "Nothing to delete."
+            : $"Deleted {deleted.Count} file(s): {string.Join(", ", deleted.Take(4))}{(deleted.Count > 4 ? " ..." : "")}";
+
+        set.Clear();
+        if (kind == MediaKind.Image) _confirmBulkImages = false; else _confirmBulkVideos = false;
+        RefreshFromService();
+    }
+
+    /// <summary>Result colours: errors red, "nothing stored" notices amber, successes green.</summary>
+    private static Severity ResultSeverity(string result)
+    {
+        if (result.Contains("failed") || result.Contains("unsupported") || result.Contains("Skipped"))
+        {
+            return Severity.Error;
+        }
+
+        if (result.Contains("not added") || result.Contains("identical") || result.Contains("unchanged") || result.Contains("original size") || result.Contains("replaced"))
+        {
+            return Severity.Warning;
+        }
+
+        return Severity.Success;
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes >= 1024 * 1024 ? $"{bytes / (1024.0 * 1024.0):F1} MB" : $"{bytes / 1024.0:F0} KB";
+}

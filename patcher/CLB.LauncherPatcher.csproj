@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>CustomLauncherBackgrounds.Patcher</AssemblyName>
+    <RootNamespace>CLB.LauncherPatcher</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <Version>2.2.0</Version>
+    <!-- The .NET 10 runtime is a hard requirement of SPT 5.0 anyway; roll forward when a newer patch is installed -->
+    <RollForward>LatestMinor</RollForward>
+  </PropertyGroup>
+
+  <!--
+    The payload/bundle logic is shared with the server mod so both produce byte-identical results.
+  -->
+  <ItemGroup>
+    <Compile Include="..\LauncherBundle.cs" Link="Shared\LauncherBundle.cs" />
+    <Compile Include="..\LauncherPayload.cs" Link="Shared\LauncherPayload.cs" />
+    <Compile Include="..\LauncherProcessCloser.cs" Link="Shared\LauncherProcessCloser.cs" />
+  </ItemGroup>
+
+</Project>

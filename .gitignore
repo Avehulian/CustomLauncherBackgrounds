@@ -1,0 +1,21 @@
+# Build output
+bin/
+obj/
+release/
+dist/
+
+# Client/Server build inputs
+client-plugin/Refs/
+client-plugin/bin/
+client-plugin/obj/
+patcher/bin/
+patcher/obj/
+
+# IDE
+.vs/
+.idea/
+*.user
+
+# OS
+Thumbs.db
+.DS_Store

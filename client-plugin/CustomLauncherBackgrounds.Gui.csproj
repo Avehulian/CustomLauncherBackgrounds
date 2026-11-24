@@ -1,0 +1,127 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>10</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>CustomLauncherBackgrounds.Gui</AssemblyName>
+    <RootNamespace>CLB.Gui</RootNamespace>
+    <Version>2.48.4</Version>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+
+  <!--
+    References for SPT 4.1.6 (BepInEx 5.x + IL2CPP game assemblies):
+      BepInEx.Unity.IL2CPP.dll:  compile-time reference from extracted/refs (BepInEx 6.x)
+                                  Contains BasePlugin with AddComponent<T>()
+      BepInEx.Core.dll:          compile-time reference for BepInPlugin, PluginInfo, Config, etc.
+      0Harmony.dll:              compile-time reference for Harmony
+      IL2CPP interop:            from client-refs-full
+      Unity:                     from client-refs-full
+      Game:                      from client-refs-full
+
+    Note: The BepInEx DLLs from extracted/refs are from BepInEx 6.x. They are used for
+    compile-time reference only. At runtime, the actual BepInEx 5.x BepInEx.dll in SPT 4.1.6
+    provides the implementation. The BasePlugin API is compatible between BepInEx 5.x and 6.x.
+  -->
+
+  <!-- The updater test harness is its own project -->
+  <ItemGroup>
+    <Compile Remove="tests\**" />
+    <None Remove="tests\**" />
+    <Content Remove="tests\**" />
+  </ItemGroup>
+
+  <!-- Shared with the server mod / standalone patcher (pure .NET, no Unity) -->
+  <ItemGroup>
+    <Compile Include="..\LauncherProcessCloser.cs" Link="Shared\LauncherProcessCloser.cs" />
+    <Compile Include="..\LauncherWindowChrome.cs" Link="Shared\LauncherWindowChrome.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- BepInEx 6.x compile-time references (from extracted/refs) -->
+    <Reference Include="BepInEx.Unity.IL2CPP">
+      <HintPath>Refs\BepInEx.Unity.IL2CPP.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx.Core">
+      <HintPath>Refs\BepInEx.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx.Unity.Common">
+      <HintPath>Refs\BepInEx.Unity.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>Refs\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- IL2CPP interop assemblies -->
+    <Reference Include="Il2CppInterop.Common">
+      <HintPath>Refs\Il2CppInterop.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Runtime">
+      <HintPath>Refs\Il2CppInterop.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>Refs\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppSystem">
+      <HintPath>Refs\Il2CppSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppSystem.Core">
+      <HintPath>Refs\Il2CppSystem.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Unity assemblies (IL2CPP interop versions) -->
+    <Reference Include="UnityEngine">
+      <HintPath>Refs\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>Refs\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>Refs\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>Refs\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>Refs\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- Game assemblies -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>Refs\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="CoreServices">
+      <HintPath>Refs\CoreServices.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!-- .NET Framework 4.8 required references -->
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.CompilerServices.Unsafe" />
+  </ItemGroup>
+
+  <!-- NuGet packages needed for .NET Framework 4.8 compatibility -->
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+
+</Project>

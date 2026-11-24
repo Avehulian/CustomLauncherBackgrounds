@@ -1,0 +1,168 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PreyToLive.CustomLauncherBackgrounds</RootNamespace>
+    <AssemblyName>PreyToLive-CustomLauncherBackgrounds</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Library</OutputType>
+    <Version>2.48.4</Version>
+    <LangVersion>latest</LangVersion>
+    <Platforms>x64</Platforms>
+
+    <!-- Name of the mod folder inside SPT_Runtime\user\mods\. -->
+    <ModFolderName>PreyToLive-CustomLauncherBackgrounds</ModFolderName>
+
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+
+    <!-- Optional SPT install root used for deploy copies. Leave empty to only produce the release package. -->
+    <TarkovDir Condition=" '$(TarkovDir)' == '' "></TarkovDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- SPT 4.1.6 (SPT-Tushonka) DLL references -->
+    <Reference Include="SPTarkov.Common">
+      <HintPath>C:\Users\Grady\.lmstudio\scratchpads\bnf\4.1.6-server\SPT_Runtime\SPTarkov.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="SPTarkov.DI">
+      <HintPath>C:\Users\Grady\.lmstudio\scratchpads\bnf\4.1.6-server\SPT_Runtime\SPTarkov.DI.dll</HintPath>
+    </Reference>
+    <Reference Include="SPTarkov.Server.Core">
+      <HintPath>C:\Users\Grady\.lmstudio\scratchpads\bnf\4.1.6-server\SPT_Runtime\SPTarkov.Server.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="SPTarkov.Server.Web">
+      <HintPath>C:\Users\Grady\.lmstudio\scratchpads\bnf\4.1.6-server\SPT_Runtime\SPTarkov.Server.Web.dll</HintPath>
+    </Reference>
+    <Reference Include="SemanticVersioning">
+      <HintPath>C:\Users\Grady\.lmstudio\scratchpads\bnf\4.1.6-server\SPT_Runtime\SemanticVersioning.dll</HintPath>
+    </Reference>
+    <Reference Include="MudBlazor">
+      <HintPath>C:\Users\Grady\.lmstudio\scratchpads\bnf\4.1.6-server\SPT_Runtime\MudBlazor.dll</HintPath>
+    </Reference>
+    <!-- Used to re-encode images that do not fit the launcher's built-in background slot (Windows only) -->
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+    <!-- Dependency of System.Private.Windows.Core that is not part of the server runtime -->
+    <PackageReference Include="System.Formats.Nrbf" Version="10.0.0" />
+  </ItemGroup>
+
+  <!--
+    System.Drawing.Common (used to re-encode oversized images) is not part of the SPT server runtime,
+    so its runtime assemblies ship inside the mod folder. Library projects do not copy package assets
+    by default, hence the explicit items.
+  -->
+  <ItemGroup>
+    <None Include="$(NuGetPackageRoot)system.drawing.common/10.0.0/lib/net10.0/System.Drawing.Common.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>System.Drawing.Common.dll</Link>
+    </None>
+    <None Include="$(NuGetPackageRoot)system.drawing.common/10.0.0/lib/net10.0/System.Private.Windows.Core.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>System.Private.Windows.Core.dll</Link>
+    </None>
+    <None Include="$(NuGetPackageRoot)system.drawing.common/10.0.0/lib/net10.0/System.Private.Windows.GdiPlus.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>System.Private.Windows.GdiPlus.dll</Link>
+    </None>
+    <None Include="$(NuGetPackageRoot)microsoft.win32.systemevents/10.0.0/lib/net10.0/Microsoft.Win32.SystemEvents.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Microsoft.Win32.SystemEvents.dll</Link>
+    </None>
+    <None Include="$(NuGetPackageRoot)system.formats.nrbf/10.0.0/lib/net10.0/System.Formats.Nrbf.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>System.Formats.Nrbf.dll</Link>
+    </None>
+  </ItemGroup>
+
+  <!-- The standalone patcher tool and the in-game prompt plugin live in their own projects -->
+  <ItemGroup>
+    <Compile Remove="patcher\**" />
+    <None Remove="patcher\**" />
+    <Content Remove="patcher\**" />
+    <Compile Remove="client-plugin\**" />
+    <None Remove="client-plugin\**" />
+    <Content Remove="client-plugin\**" />
+  </ItemGroup>
+
+  <!-- Files that ship next to the DLL inside the mod folder -->
+  <ItemGroup>
+    <Content Update="config.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="res\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Update="LICENSE.md">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="README.md">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>None</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+  </PropertyGroup>
+
+  <!--
+    Packages the mod for SPT 4.1.6 (SPT-Tushonka):
+
+      release/PreyToLive-CustomLauncherBackgrounds-<version>-SPTushonka-4.1.6.zip
+        SPT_Runtime/user/mods/PreyToLive-CustomLauncherBackgrounds/<mod files>
+
+    Every file is listed explicitly so the package can never pick up build junk.
+    Pass -p:TarkovDir="C:\path\to\SPT\" to also copy the mod straight into that install.
+    The bundled pre-patched SPT.Launcher.exe is included in wwwroot/LauncherPatcher/win/
+    and served via /files/launcher/clb-launcher for friends to download.
+  -->
+  <Target Name="PackageRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <BinOutDir>$(MSBuildProjectDirectory)\bin\Release\</BinOutDir>
+      <ReleaseRoot>$(MSBuildProjectDirectory)\release\$(ModFolderName)\</ReleaseRoot>
+      <ReleaseModDir>$(ReleaseRoot)SPT_Runtime\user\mods\$(ModFolderName)\</ReleaseModDir>
+      <ReleaseZip>$(MSBuildProjectDirectory)\release\$(ModFolderName)-$(Version)-SPTushonka-4.1.6.zip</ReleaseZip>
+      <DeployModDir>$(TarkovDir)SPT_Runtime\user\mods\$(ModFolderName)\</DeployModDir>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(BinOutDir)$(AssemblyName).dll')" Text="Build output is missing $(BinOutDir)$(AssemblyName).dll" />
+
+    <RemoveDir Directories="$(MSBuildProjectDirectory)\release" />
+    <MakeDir Directories="$(ReleaseModDir)" />
+
+    <ItemGroup>
+      <_ReleaseFile Include="$(BinOutDir)$(AssemblyName).dll" />
+      <_ReleaseFile Include="$(BinOutDir)System.Drawing.Common.dll" />
+      <_ReleaseFile Include="$(BinOutDir)System.Private.Windows.Core.dll" />
+      <_ReleaseFile Include="$(BinOutDir)System.Private.Windows.GdiPlus.dll" />
+      <_ReleaseFile Include="$(BinOutDir)Microsoft.Win32.SystemEvents.dll" />
+      <_ReleaseFile Include="$(BinOutDir)System.Formats.Nrbf.dll" />
+      <_ReleaseFile Include="$(BinOutDir)config.json" />
+      <_ReleaseFile Include="$(BinOutDir)README.md" />
+      <_ReleaseFile Include="$(BinOutDir)LICENSE.md" />
+      <_ReleaseRes Include="$(BinOutDir)res\**\*" />
+      <_ReleaseWwwroot Include="$(BinOutDir)wwwroot\**\*" Exclude="$(BinOutDir)wwwroot\**\*.gz;$(BinOutDir)wwwroot\**\*.br" />
+    </ItemGroup>
+
+    <Error Condition="!Exists('$(BinOutDir)System.Formats.Nrbf.dll')" Text="Missing runtime dependency System.Formats.Nrbf.dll in $(BinOutDir)" />
+
+    <Copy SourceFiles="@(_ReleaseFile)" DestinationFolder="$(ReleaseModDir)" />
+    <Copy SourceFiles="@(_ReleaseRes)" DestinationFiles="@(_ReleaseRes->'$(ReleaseModDir)res\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="@(_ReleaseWwwroot)" DestinationFiles="@(_ReleaseWwwroot->'$(ReleaseModDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" />
+
+    <ZipDirectory SourceDirectory="$(ReleaseRoot)" DestinationFile="$(ReleaseZip)" Overwrite="true" />
+
+    <Copy SourceFiles="@(_ReleaseFile)" DestinationFolder="$(DeployModDir)" Condition=" '$(TarkovDir)' != '' And Exists('$(TarkovDir)') " />
+    <Copy SourceFiles="@(_ReleaseRes)" DestinationFiles="@(_ReleaseRes->'$(DeployModDir)res\%(RecursiveDir)%(Filename)%(Extension)')" Condition=" '$(TarkovDir)' != '' And Exists('$(TarkovDir)') " />
+    <Copy SourceFiles="@(_ReleaseWwwroot)" DestinationFiles="@(_ReleaseWwwroot->'$(DeployModDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" Condition=" '$(TarkovDir)' != '' And Exists('$(TarkovDir)') " />
+
+    <Message Importance="high" Text="Release package created: $(ReleaseZip)" />
+  </Target>
+
+</Project>
